@@ -20,7 +20,7 @@ class ListenerActor extends Actor {
       sender() ! HttpResponse(entity = "PONG")
     // ------------------------------------------------------------------
     case HttpRequest(GET, Uri.Path("/list"), _, _, _) =>
-      
+      new WMI {}
       sender() ! HttpResponse(
         entity = "PONG"
       )
