@@ -14,3 +14,4 @@ jarName in assembly := "wmirp.jar"
 
 libraryDependencies ++= Dependencies.akka
 
+classpathTypes ++= Set("jnilib", "dll")

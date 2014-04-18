@@ -12,11 +12,24 @@ object ListenerActor {
 
 class ListenerActor extends Actor {
   def receive = {
-    case _: Http.Connected => sender ! Http.Register(self)
+    // ------------------------------------------------------------------
+    case _: Http.Connected =>
+      sender ! Http.Register(self)
+    // ------------------------------------------------------------------
     case HttpRequest(GET, Uri.Path("/ping"), _, _, _) =>
       sender() ! HttpResponse(entity = "PONG")
-    case HttpRequest(_,_,_,_,_) => 
-      sender() ! HttpResponse(status=404, entity="NotFound")
+    // ------------------------------------------------------------------
+    case HttpRequest(GET, Uri.Path("/list"), _, _, _) =>
+      
+      sender() ! HttpResponse(
+        entity = "PONG"
+      )
+    // ------------------------------------------------------------------
+    case HttpRequest(_, _, _, _, _) =>
+      sender() ! HttpResponse(
+        status = 404,
+        entity = "NotFound")
+    // ------------------------------------------------------------------
   }
 }
 
