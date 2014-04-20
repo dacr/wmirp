@@ -108,6 +108,15 @@ class RawWMITest extends FunSuite with ShouldMatchers with BeforeAndAfterAll {
     idle.toInt should be >(0)
   }
 
+  test("get singleton") {
+    val tmp = wmiconnect.invoke("Get",new Variant(
+        """\\.\root\cimv2:Win32_PerfFormattedData_PerfOS_System=@""")) // => SWbemObject
+    val ob = tmp.toDispatch()
+    val processes = Dispatch.call(ob, "Processes").toString()
+    info(s"system singleton processes=$processes")
+    processes.toInt should be >(0)
+  }
+  
   test("list classes") {
     val classes = wmiconnect.invoke("SubclassesOf")
     val enumVariant = new EnumVariant(classes.toDispatch())

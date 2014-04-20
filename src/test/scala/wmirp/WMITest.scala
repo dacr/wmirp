@@ -36,12 +36,14 @@ class WMITest extends FunSuite with ShouldMatchers with BeforeAndAfterAll {
     info(s"found ${perfs.size} performances com classes")
     val processor = perfs.find(_.name contains "PerfOS_Processor")
     processor should be ('defined)
+    val system = perfs.find(_.name contains "PerfOS_System")
+    system should be ('defined)
   }
 
   test("Get class instances") {
     val processors = wmi.getInstances("Win32_PerfFormattedData_PerfOS_Processor")
     processors.size should be > (0)
-    processors.map(_.name.id.get) should contain ("_Total")
+    processors.map(_.name.get) should contain ("_Total")
   }
 
   test("Get instance values first CPU") {
@@ -78,8 +80,8 @@ class WMITest extends FunSuite with ShouldMatchers with BeforeAndAfterAll {
     val sys = wmi.getInstance("Win32_PerfFormattedData_PerfOS_System")
     sys should be ('defined)
     val entries = sys.get.entries
-    val processes = entries.get("Processes").map(_.getString.toInt)
-    val threads = entries.get("Threads").map(_.getString.toInt)
+    val processes = entries.get("Processes").map(_.toString.toInt)
+    val threads = entries.get("Threads").map(_.toString.toInt)
     info(s"System : Processes=$processes threads=$threads")
     processes.get should be >(0)
     threads.get should be > (0)
@@ -91,17 +93,18 @@ class WMITest extends FunSuite with ShouldMatchers with BeforeAndAfterAll {
   }
 
   
-  ignore("Performance walk - search metrics") {
+  test("Performance walk - search metrics") {
     val numRE = """(\d+(?:[.,]\d+)?)""".r
     val found = for {
-      perfclass <- wmi.getClasses
-      instance <- perfclass.instances
-      (key,numRE(value)) <- instance.entries
+      perfclass <- wmi.getPerfClasses
+      instance <- {println(perfclass.name) ; perfclass.instances}
+      (key,numRE(value)) <- instance.entries.map{case(k,v)=> k -> v.toString}
       clname = perfclass.name
-      iname = instance.name.id.getOrElse("default")
+      iname = instance.name.getOrElse("default")
     } yield {
       s"$clname/$iname.$key=$value"
     }
+    info(s"Found ${found.size} numerical values")
     found.size should be >(50)
     found.filter(_ contains "PercentProcessor").foreach(info(_))
   }
