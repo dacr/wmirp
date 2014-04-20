@@ -6,6 +6,22 @@ import com.jacob.com.EnumVariant
 import com.jacob.com.Variant
 import com.typesafe.scalalogging.slf4j.Logging
 
+case class InstanceName(val id: Option[String]) {
+  def isEmpty = id.isEmpty
+  def isDefined = id.isDefined
+}
+
+object InstanceName {
+  def apply(desc: String): InstanceName = {
+    desc match {
+      case "" | "null" | "\"null\""|null => new InstanceName(None)
+      case n => new InstanceName(Some(n))
+    }
+  }
+  implicit def string2InstanceName(desc:String):InstanceName = 
+    apply(desc)
+}
+
 case class ComClass(desc: String) {
   val defaultBasePath = """\\.\root\cimv2"""
   val (path, location, name) = {
@@ -26,7 +42,7 @@ case class ComClass(desc: String) {
     wmi.getInstancesNames(this)
   }
   def get(name: String)(implicit wmi: WMI): Option[ComInstance] = {
-    wmi.getInstance(this, Some(name))
+    wmi.getInstance(this, InstanceName(name))
   }
 }
 
@@ -34,7 +50,7 @@ object ComClass {
   implicit def string2ComClass(path: String): ComClass = ComClass(path)
 }
 
-case class ComInstance(comClass: ComClass, name: Option[String]) {
+case class ComInstance(comClass: ComClass, name: InstanceName) {
   def entries(implicit wmi: WMI): Map[String, Variant] =
     wmi.getAttributesValues(this)
 }
@@ -108,11 +124,8 @@ trait WMI extends Logging {
       val enumVariant = new EnumVariant(dispatch)
       while (enumVariant.hasMoreElements()) {
         useDispatch(enumVariant.nextElement()) { itemDispatch =>
-          val name = Dispatch.call(itemDispatch, "Name").getString
-          val instance = name match {
-            case ""|"null"|"\"null\"" => ComInstance(comClass, None)
-            case n => ComInstance(comClass, Some(name))
-          }
+          val name = InstanceName(Dispatch.call(itemDispatch, "Name").getString)
+          val instance = ComInstance(comClass, name)
           result = instance :: result
         }
       }
@@ -120,23 +133,17 @@ trait WMI extends Logging {
     result
   }
 
-  def getInstance(comClass: ComClass, name: String): Option[ComInstance] = {
-    name match {
-      case ""|"null" => getInstance(comClass, None)
-      case n => getInstance(comClass, Some(n))
-    }
-  }
-
-  def getInstance(comClass: ComClass, name: Option[String] = None): Option[ComInstance] = {
-    val id = if (name.isDefined) comClass.path + ".Name=\"" + name.get + "\""
+  def getInstance(comClass: ComClass, name: InstanceName = InstanceName(None)): Option[ComInstance] = {
+    val id = if (name.isDefined) comClass.path + ".Name=\"" + name.id.get + "\""
     else comClass.path
     useDispatch(swbemservices.invoke("Get", new Variant(id))) { instanceDispatch =>
       try {
-        val foundName = Dispatch.call(instanceDispatch, "Name").getString
-        foundName match {
-          case ""|"null"|"\"null\"" if name.isDefined => None
-          case ""|"null"|"\"null\"" if name.isEmpty => Some(ComInstance(comClass, name))
-          case fn if name.isDefined && name.get==fn => Some(ComInstance(comClass, name))
+        val foundName = InstanceName(Dispatch.call(instanceDispatch, "Name").getString)
+
+        foundName.id match {
+          case None if name.isDefined => None
+          case None if name.isEmpty => Some(ComInstance(comClass, name))
+          case Some(id) if name.isDefined && name.id.get == id => Some(ComInstance(comClass, name))
           case _ => None
         }
       } catch {
@@ -147,7 +154,7 @@ trait WMI extends Logging {
 
   def getAttributesValues(instance: ComInstance): Map[String, Variant] = {
     var result = Map.empty[String, Variant]
-    val id = if (instance.name.isDefined) instance.comClass.path + ".Name=\"" + instance.name.get + "\""
+    val id = if (instance.name.isDefined) instance.comClass.path + ".Name=\"" + instance.name.id.get + "\""
     else instance.comClass.path
     try {
       useDispatch(swbemservices.invoke("Get", new Variant(id))) { instanceDispatch =>
@@ -159,7 +166,7 @@ trait WMI extends Logging {
         }
       }
     } catch {
-      case e:Exception =>
+      case e: Exception =>
         logger.error(s"Exception in Get operation with $id", e)
         throw e
     }

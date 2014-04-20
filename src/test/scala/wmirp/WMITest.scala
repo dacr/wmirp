@@ -41,7 +41,7 @@ class WMITest extends FunSuite with ShouldMatchers with BeforeAndAfterAll {
   test("Get class instances") {
     val processors = wmi.getInstances("Win32_PerfFormattedData_PerfOS_Processor")
     processors.size should be > (0)
-    processors.map(_.name.get) should contain ("_Total")
+    processors.map(_.name.id.get) should contain ("_Total")
   }
 
   test("Get instance values first CPU") {
@@ -91,14 +91,14 @@ class WMITest extends FunSuite with ShouldMatchers with BeforeAndAfterAll {
   }
 
   
-  test("Performance walk - search metrics") {
+  ignore("Performance walk - search metrics") {
     val numRE = """(\d+(?:[.,]\d+)?)""".r
     val found = for {
       perfclass <- wmi.getClasses
       instance <- perfclass.instances
       (key,numRE(value)) <- instance.entries
       clname = perfclass.name
-      iname = instance.name.getOrElse("default")
+      iname = instance.name.id.getOrElse("default")
     } yield {
       s"$clname/$iname.$key=$value"
     }

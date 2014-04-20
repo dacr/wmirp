@@ -105,7 +105,7 @@ class RawWMITest extends FunSuite with ShouldMatchers with BeforeAndAfterAll {
     val idle = proc.getProperty("PercentIdleTime").toInt
     val user = proc.getProperty("PercentProcessorTime").toInt
     info(s"$name cpu idle=$idle user=$user")
-    idle should not equal (user)
+    idle.toInt should be >(0)
   }
 
   test("list classes") {
