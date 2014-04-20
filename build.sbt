@@ -17,6 +17,10 @@ libraryDependencies ++= Dependencies.akka
 classpathTypes ++= Set("jnilib", "dll")
 
 initialCommands in console := """
+import com.jacob.activeX.ActiveXComponent
+import com.jacob.com.Dispatch
+import com.jacob.com.EnumVariant
+import com.jacob.com.Variant
 import fr.janalyse.wmirp._
 val wmi = new WMI {}
 """

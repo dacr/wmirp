@@ -1,4 +1,4 @@
-package wmirp
+package fr.janalyse.wmirp
 
 import org.scalatest.FunSuite
 import org.scalatest.junit.JUnitRunner
@@ -14,124 +14,96 @@ import com.jacob.com.EnumVariant
 import com.jacob.com.Variant
 
 class WMITest extends FunSuite with ShouldMatchers with BeforeAndAfterAll {
-  var wmiconnect: ActiveXComponent = _ //  SWbemServices
+  implicit var wmi: WMI = _
 
   override def beforeAll() {
-    System.setProperty("java.library.path", "src/main/resources/")
-    val locator = new ActiveXComponent("WbemScripting.SWbemLocator") //  SWbemLocator
-    val swbemServices = locator.invoke("ConnectServer").toDispatch()
-    wmiconnect = new ActiveXComponent(swbemServices)
+    wmi = new WMI {}
   }
 
   override def afterAll() {
-    // wmiconnect.safeRelease()
+    wmi.close()
   }
 
-  test("query test") {
-    val query = "select * from Win32_PerfFormattedData_PerfOS_Processor"
-    val vCollection = wmiconnect.invoke("ExecQuery", new Variant(query)) // SWbemObjectSet 
-    val enumVariant = new EnumVariant(vCollection.toDispatch())
+  test("Browsing test 1") {
+    val all = wmi.getClasses()
+    all.size should be > (200)
+    info(s"found ${all.size} com classes")
+  }
+  
+  test("Browsing test 2") {
+    val perfs = wmi.getPerfClasses()
+    perfs.size should be > (20)
+    info(s"found ${perfs.size} performances com classes")
+    val processor = perfs.find(_.name contains "PerfOS_Processor")
+    processor should be ('defined)
+  }
 
-    while (enumVariant.hasMoreElements()) {
-      val item = enumVariant.nextElement().toDispatch()
-      val name = Dispatch.call(item, "Name").getString()
-      val idle = Dispatch.get(item, "PercentIdleTime")
-      info(s"Found instance name : $name - PercentIdleTime=$idle")
+  test("Get class instances") {
+    val processors = wmi.getInstances("Win32_PerfFormattedData_PerfOS_Processor")
+    processors.size should be > (0)
+    processors.map(_.name.get) should contain ("_Total")
+  }
 
-    }
+  test("Get instance values first CPU") {
+    val cpu = wmi.getInstance("Win32_PerfFormattedData_PerfOS_Processor", "0")
+    cpu should be ('defined)
+    val entries=cpu.get.entries
+    val idle = entries.get("PercentIdleTime").map(_.getString.toInt)
+    val user = entries.get("PercentUserTime").map(_.getString.toInt)
+    info(s"CPU Usage : idle=$idle user=$user")
+    idle.get should be >(0)
+  }
+
+  test("Get instance values Total 1") {
+    val cpu = wmi.getInstance("""Win32_PerfFormattedData_PerfOS_Processor""", "_Total")
+    cpu should be ('defined)
+    val entries=cpu.get.entries
+    val idle = entries.get("PercentIdleTime").map(_.getString.toInt)
+    val user = entries.get("PercentUserTime").map(_.getString.toInt)
+    info(s"CPU Usage : idle=$idle user=$user")
+    idle.get should be >(0)
+  }
+  
+  test("Get instance values Total 2 full path") {
+    val cpu = wmi.getInstance("""\\.\root\cimv2:Win32_PerfFormattedData_PerfOS_Processor""", "_Total")
+    cpu should be ('defined)
+    val entries=cpu.get.entries
+    val idle = entries.get("PercentIdleTime").map(_.getString.toInt)
+    val user = entries.get("PercentUserTime").map(_.getString.toInt)
+    info(s"CPU Usage : idle=$idle user=$user")
+    idle.get should be >(0)
+  }
+
+  test("Get standalone instance") {
+    val sys = wmi.getInstance("Win32_PerfFormattedData_PerfOS_System")
+    sys should be ('defined)
+    val entries = sys.get.entries
+    val processes = entries.get("Processes").map(_.getString.toInt)
+    val threads = entries.get("Threads").map(_.getString.toInt)
+    info(s"System : Processes=$processes threads=$threads")
+    processes.get should be >(0)
+    threads.get should be > (0)
+  }
+  
+  test("Get unknown instance") {
+    val cpu = wmi.getInstance("Win32_PerfFormattedData_PerfOS_Processor", "trucmuche")
+    cpu should be ('empty)
   }
 
   
-  test("dump object text (properties and values)") {
-    val query = "select * from Win32_PerfFormattedData_PerfOS_System"
-    val vCollection = wmiconnect.invoke("ExecQuery", new Variant(query)) // SWbemObjectSet 
-    val enumVariant = new EnumVariant(vCollection.toDispatch())
-
-    val system = enumVariant.nextElement().toDispatch()
-    info(Dispatch.call(system, "GetObjectText_").toString)
-    val processes = Dispatch.get(system, "Processes")
-    info(s"Processes count $processes")
-    processes.toInt should be > (10)
-    
+  test("Performance walk - search metrics") {
+    val numRE = """(\d+(?:[.,]\d+)?)""".r
+    val found = for {
+      perfclass <- wmi.getClasses
+      instance <- perfclass.instances
+      (key,numRE(value)) <- instance.entries
+      clname = perfclass.name
+      iname = instance.name.getOrElse("default")
+    } yield {
+      s"$clname/$iname.$key=$value"
+    }
+    found.size should be >(50)
+    found.filter(_ contains "PercentProcessor").foreach(info(_))
   }
   
-  test("list object properties") {
-    val query = "select * from Win32_PerfFormattedData_PerfOS_System"
-    val vCollection = wmiconnect.invoke("ExecQuery", new Variant(query)) // SWbemObjectSet 
-    val enumVariant = new EnumVariant(vCollection.toDispatch())
-    val system = enumVariant.nextElement().toDispatch()
-
-    val props = Dispatch.call(system, "Properties_").toDispatch
-    val enumProps = new EnumVariant(props)
-    while(enumProps.hasMoreElements()) {
-      val item = enumProps.nextElement.toDispatch()
-      val key = Dispatch.get(item, "Name")
-      val value = Dispatch.get(item, "Value")
-      info(s"$key = $value")
-    }    
-  }
-  
-  test("instancesof test") {
-    val obs = wmiconnect.invoke(
-      "InstancesOf",
-      new Variant("Win32_PerfFormattedData_PerfOS_Processor")) // => SWbemObjectSet
-
-    val enumVariant = new EnumVariant(obs.toDispatch())
-    while (enumVariant.hasMoreElements()) {
-      val item = enumVariant.nextElement().toDispatch()
-      val name = Dispatch.call(item, "Name").getString()
-      val idle = Dispatch.get(item, "PercentIdleTime")
-      info(s"Found instance name : $name - PercentIdleTime=$idle")
-    }
-  }
-
-  test("get test") {
-    val tmp = wmiconnect.invoke(
-      "Get",
-      new Variant("""\\.\root\cimv2:Win32_PerfFormattedData_PerfOS_Processor.Name="__Total"""")) // => SWbemObject
-    val ob = tmp.toDispatch()
-    val name = Dispatch.call(ob, "Name").getString()
-    val idle = Dispatch.call(ob, "PercentIdleTime").getString()
-    val user = Dispatch.call(ob, "PercentProcessorTime").getString()
-    info(s"$name cpu idle=$idle user=$user")
-    idle should not equal (user)
-  }
-
-  test("get test 2") {
-    val ob = wmiconnect.invoke(
-      "Get",
-      """\\.\root\cimv2:Win32_PerfRawData_PerfOS_Processor.Name="__Total"""").toDispatch() // => SWbemObject
-    val name = Dispatch.call(ob, "Name").getString()
-    val idle = Dispatch.get(ob, "PercentIdleTime")
-    val user = Dispatch.get(ob, "PercentProcessorTime")
-    val int = Dispatch.get(ob, "InterruptsPersec")
-    info(idle.toJavaObject().getClass().getName())
-    info(s"$name cpu idle=$idle user=$user ints=$int")
-    idle.toInt should not equal (user.toInt)
-  }
-
-  test("get test 3") {
-    val ob = wmiconnect.invoke(
-      "Get",
-      """\\.\root\cimv2:Win32_PerfRawData_PerfOS_Processor.Name="__Total"""").toDispatch() // => SWbemObject
-    val proc = new ActiveXComponent(ob)
-
-    val name = proc.getProperty("Name") //Dispatch.call(ob, "Name").getString()
-    val idle = proc.getProperty("PercentIdleTime").toInt
-    val user = proc.getProperty("PercentProcessorTime").toInt
-    info(s"$name cpu idle=$idle user=$user")
-    idle should not equal (user)
-  }
-
-  test("list classes") {
-    val classes = wmiconnect.invoke("SubclassesOf")
-    val enumVariant = new EnumVariant(classes.toDispatch())
-    while(enumVariant.hasMoreElements()) {
-      val item = enumVariant.nextElement().toDispatch()
-      val pathd = Dispatch.call(item, "Path_").toDispatch()
-      val path = Dispatch.get(pathd, "Path").toString
-      if (path.contains("PerfFormatt")) info(path)
-    }
-  }
-
 }
