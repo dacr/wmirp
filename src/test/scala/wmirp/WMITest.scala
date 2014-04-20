@@ -55,7 +55,7 @@ class WMITest extends FunSuite with ShouldMatchers with BeforeAndAfterAll {
     
   }
   
-  test("list object roperties") {
+  test("list object properties") {
     val query = "select * from Win32_PerfFormattedData_PerfOS_System"
     val vCollection = wmiconnect.invoke("ExecQuery", new Variant(query)) // SWbemObjectSet 
     val enumVariant = new EnumVariant(vCollection.toDispatch())

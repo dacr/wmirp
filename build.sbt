@@ -15,3 +15,8 @@ jarName in assembly := "wmirp.jar"
 libraryDependencies ++= Dependencies.akka
 
 classpathTypes ++= Set("jnilib", "dll")
+
+initialCommands in console := """
+import fr.janalyse.wmirp._
+val wmi = new WMI {}
+"""
