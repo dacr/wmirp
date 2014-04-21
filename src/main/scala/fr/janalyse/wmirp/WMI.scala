@@ -80,6 +80,18 @@ trait WMI extends Logging {
        .filterNot(_.name contains "Costly")
        .filterNot(_.name contains "PerfProc_Thread")
        .filterNot(_.name == "Win32_PerfFormattedData")
+       .filterNot(_.name contains "Teredo")
+       .filterNot(_.name contains "Print")
+       .filterNot(_.name contains "USB")
+       .filterNot(_.name contains "MSDTCBridge")
+       .filterNot(_.name contains "ServiceModel")
+       .filterNot(_.name contains "MediaPlayer")
+       .filterNot(_.name contains "TapiSrv_Tele")
+       .filterNot(_.name contains "PowerMeter")
+       .filterNot(_.name contains "WindowsWorkflow")
+       .filterNot(_.name contains "IPsec")
+       .filterNot(_.name contains "PeerNameResolution")
+       .filterNot(_.name contains "PeerDistSvc")
 
   def getClassAttributes(comClass: ComClass): List[String] = {
     var result = List.empty[String]
@@ -148,6 +160,7 @@ trait WMI extends Logging {
       }
     }
   }
+
 
   def getAttributesValues(instance: ComInstance): Map[String, Variant] = {
     var result = Map.empty[String, Variant]

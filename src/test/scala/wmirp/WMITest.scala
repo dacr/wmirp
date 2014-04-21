@@ -106,7 +106,8 @@ class WMITest extends FunSuite with ShouldMatchers with BeforeAndAfterAll {
     }
     info(s"Found ${found.size} numerical values")
     found.size should be >(50)
-    found.filter(_ contains "PercentProcessor").foreach(info(_))
+    found.filter(_ contains "PercentProcessor").take(5).foreach(info(_))
+    found.filter(_ contains "PerfOS_System").foreach(info(_))
   }
   
 }
