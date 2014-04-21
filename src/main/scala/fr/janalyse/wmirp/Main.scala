@@ -13,7 +13,7 @@ import akka.util.Timeout
 import akka.pattern.ask
 import concurrent._
 import concurrent.duration._
-import concurrent.ExecutionContext.Implicits.global
+import scala.util.{Success,Failure}
 
 object ListenerActor {
   def props() = Props(new ListenerActor)
@@ -36,28 +36,33 @@ object WMIConnectionHandlerActor {
 
 class WMIConnectionHandlerActor(remote: InetSocketAddress, connection: ActorRef, wmiactor: ActorRef) extends Actor with Logging {
   import WMIActor._
-
+  import context.dispatcher // The execution context
+  
   def receive = {
     case HttpRequest(GET, Uri.Path("/ping"), _, _, _) =>
       sender() ! HttpResponse(entity = "PONG")
     // ------------------------------------------------------------------
+    case HttpRequest(GET, Uri.Path("/"), _, _, _) =>
+      implicit val timeout = Timeout(20 seconds)
+      val fstate = wmiactor ? WMIStatusRequest
+      val caller=sender
+      fstate.onComplete {
+        case Failure(ex) => caller!HttpResponse(entity=ex.getMessage)
+        case Success(state:WMIStatus)=>
+          caller ! HttpResponse(entity = state.toString)
+        case Success(other) => caller!HttpResponse(entity="Not understood")
+      }
+    // ------------------------------------------------------------------
     case HttpRequest(GET, Uri.Path("/list"), _, _, _) =>
       implicit val timeout = Timeout(20 seconds)
       val flist = wmiactor ? WMIListRequest
-      flist.foreach {
-        case WMIList(list) =>
-          val resp =
-            <html>
-              <body>
-                <ul>
-                  {
-                    for { cl <- list } yield { <li>{}</li> }
-                  }
-                </ul>
-              </body>
-            </html>
-          sender() ! HttpResponse(
-            entity = resp.toString)
+      val caller=sender
+      flist.onComplete {
+        case Failure(ex) => caller!HttpResponse(entity=ex.getMessage)
+        case Success(wmil:WMIList) =>
+          val resp = for { cl <- wmil.classes } yield {cl.name}
+          caller ! HttpResponse(entity = resp.mkString("\n"))
+        case Success(other) => caller!HttpResponse(entity="Not understood")
       }
     // ------------------------------------------------------------------
     case HttpRequest(m, rq, _, _, _) =>
@@ -73,6 +78,7 @@ class WMIConnectionHandlerActor(remote: InetSocketAddress, connection: ActorRef,
     case Terminated(`connection`) =>
       logger.debug("Stopping, because connection for remote address {} died", remote)
       context.stop(self)
+      
   }
 }
 

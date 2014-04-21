@@ -33,11 +33,23 @@ case class ComClass(desc: String) {
 
 object ComClass {
   implicit def string2ComClass(path: String): ComClass = ComClass(path)
+  val numRE1 = """(\d+(?:[.,]\d+)?)""".r
+  val numRE2 = """([.,]\d+)""".r
 }
 
 case class ComInstance(comClass: ComClass, name: Option[String]) {
+  import ComClass.{numRE1,numRE2}
+  
   def entries(implicit wmi: WMI): Map[String, Variant] =
     wmi.getAttributesValues(this)
+
+  def numEntries(implicit wmi:WMI): Map[String, Double] = {
+    def conv(in:String)=(in.replace(",",".")).toDouble
+    entries.map{case (k,v) => k->v.toString()}.collect {
+      case (k,numRE1(v)) => k->conv(v)
+      case (k,numRE2(v)) => k->conv(v)
+    }
+  }
 }
 
 trait WMI extends Logging {
