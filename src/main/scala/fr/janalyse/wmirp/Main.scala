@@ -16,11 +16,10 @@ import concurrent.duration._
 import scala.util.{Success,Failure}
 
 object ListenerActor {
-  def props() = Props(new ListenerActor)
+  def props(wmiactor:ActorRef) = Props(new ListenerActor(wmiactor))
 }
 
-class ListenerActor extends Actor with Logging {
-  val wmiactor = context.actorOf(WMIActor.props)
+class ListenerActor(wmiactor:ActorRef) extends Actor with Logging {
   def receive = {
     // ------------------------------------------------------------------
     case Http.Connected(remote, _) =>
@@ -87,7 +86,8 @@ object Main {
   def main(args: Array[String]): Unit = {
     implicit val system = ActorSystem()
 
-    val myListener: ActorRef = system.actorOf(ListenerActor.props)
+    val wmiactor = system.actorOf(WMIActor.props)
+    val myListener = system.actorOf(ListenerActor.props(wmiactor))
 
     IO(Http) ! Http.Bind(myListener, interface = "localhost", port = 9900)
   }

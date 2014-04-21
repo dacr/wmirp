@@ -10,11 +10,10 @@ import akka.routing.SmallestMailboxRouter
 import akka.util.Timeout
 import akka.pattern.ask
 
-
 object WMIWorkerActor {
   trait WMIWorkerMessage
-  case class WMIWorkerNumEntriesRequest(instance:ComInstance)
-  case class WMIWorkerNumEntries(entries:Map[String,Double])
+  case class WMIWorkerNumEntriesRequest(instance: ComInstance)
+  case class WMIWorkerNumEntries(entries: Map[String, Double])
   def props() = Props(new WMIWorkerActor)
 }
 
@@ -48,10 +47,9 @@ object WMIActor {
   object WMIStatusRequest extends WMIMessage
   case class WMIStatus(
     classesCount: Int,
-    threadsCount:Int,
-    processesCount:Int,
-    percentProcessorTime:Int
-    ) extends WMIMessage {
+    threadsCount: Int,
+    processesCount: Int,
+    percentProcessorTime: Int) extends WMIMessage {
     override def toString() = {
       s"""Status :
          | Perf. classes count       : $classesCount
@@ -61,6 +59,8 @@ object WMIActor {
          """.stripMargin
     }
   }
+
+  object WMIDump extends WMIMessage
 
   def props =
     Props(new WMIActor)
@@ -78,7 +78,24 @@ class WMIActor extends Actor with Logging {
 
   lazy val processor = wmi.getInstance("""Win32_PerfFormattedData_PerfOS_Processor""", "_Total")
   lazy val system = wmi.getInstance("Win32_PerfFormattedData_PerfOS_System")
-    
+
+  lazy val instancesNamesAtStart = classes.map { cls =>
+    cls.map(cl => cl -> cl.instancesNames).toMap
+  }
+
+  // Classes with one unik instance
+  lazy val singletonsClasses = instancesNamesAtStart.map {
+    _.collect {
+      case (cl, Nil) => cl
+    }
+  }
+
+  lazy val otherClasses = instancesNamesAtStart.map {
+    _.collect {
+      case (cl, names) if names.size > 0 => cl
+    }
+  }
+
   override def preStart() {
     wmi = new WMI {}
     classes = future { wmi.getPerfClasses }
@@ -99,15 +116,15 @@ class WMIActor extends Actor with Logging {
       val fsys = workers ? WMIWorkerNumEntriesRequest(system.get)
       val caller = sender()
       for {
-         WMIWorkerNumEntries(procstate) <- fproc
-         WMIWorkerNumEntries(sysstate) <- fsys
-         classescount <- classes.map(_.size)
+        WMIWorkerNumEntries(procstate) <- fproc
+        WMIWorkerNumEntries(sysstate) <- fsys
+        classescount <- classes.map(_.size)
       } {
         caller ! WMIStatus(
-            classesCount = classescount,
-            threadsCount = sysstate.get("Threads").map(_.toInt).getOrElse(-1),
-            processesCount = sysstate.get("Processes").map(_.toInt).getOrElse(-1),
-            percentProcessorTime = procstate.get("PercentProcessorTime").map(_.toInt).getOrElse(-1))
+          classesCount = classescount,
+          threadsCount = sysstate.get("Threads").map(_.toInt).getOrElse(-1),
+          processesCount = sysstate.get("Processes").map(_.toInt).getOrElse(-1),
+          percentProcessorTime = procstate.get("PercentProcessorTime").map(_.toInt).getOrElse(-1))
       }
     case WMIListRequest =>
       val caller = sender
@@ -115,5 +132,8 @@ class WMIActor extends Actor with Logging {
         case x =>
           caller ! WMIList(x)
       }
+
+    case WMIDump =>
+
   }
 }

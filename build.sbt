@@ -22,5 +22,5 @@ import com.jacob.com.Dispatch
 import com.jacob.com.EnumVariant
 import com.jacob.com.Variant
 import fr.janalyse.wmirp._
-val wmi = new WMI {}
+implicit val wmi = new WMI {}
 """

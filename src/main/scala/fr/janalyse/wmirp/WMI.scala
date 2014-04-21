@@ -128,8 +128,8 @@ trait WMI extends Logging {
       val enumVariant = new EnumVariant(dispatch)
       while (enumVariant.hasMoreElements()) {
         useDispatch(enumVariant.nextElement()) { itemDispatch =>
-          val name = Dispatch.call(itemDispatch, "Name")
-          result = name.getString() :: result
+          val name = Option(Dispatch.call(itemDispatch, "Name").getString)
+          result = result ++ name
         }
       }
     }
