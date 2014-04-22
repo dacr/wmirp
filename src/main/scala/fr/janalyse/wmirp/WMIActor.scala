@@ -195,6 +195,7 @@ class WMIActor extends Actor with Logging {
             singletons2follow
           )
         )
+        highfreqmonitor ! WMIMonitorActor.Tick
       }
   }
 }
