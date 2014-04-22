@@ -36,7 +36,7 @@ class WriterActor(destFile: => File) extends Actor {
       for { (key, value) <- entries } {
         output.println(s"\t$key=$value")
       }
-    //output.flush() // leave the OS 
+    output.flush() 
   }
 }
 
