@@ -13,14 +13,14 @@ import java.io.PrintWriter
 import java.io.File
 
 object WriterActor {
-  def props(destFile:File) = Props(new WriterActor(destFile))
+  def props(destFile: File) = Props(new WriterActor(destFile))
 }
 
-class WriterActor(destFile:File) extends Actor {
+class WriterActor(destFile: File) extends Actor {
   import WMIWorkerActor._
-  
-  var output:PrintWriter=_
-  
+
+  var output: PrintWriter = _
+
   override def preStart() {
     output = new PrintWriter(destFile)
   }
@@ -31,23 +31,25 @@ class WriterActor(destFile:File) extends Actor {
 
   def receive = {
     case WMIWorkerNumEntries(instance, entries, timestamp, duration) =>
-      val id = instance.comClass.name+instance.name.map("/"+_)
+      val id = instance.comClass.name + instance.name.map("/" + _)
       output.println(s"$timestamp $id (${duration}ms)")
-      for{ (key,value) <- entries} {
+      for { (key, value) <- entries } {
         output.println(s"\t$key=$value")
       }
   }
 }
 
-
 object WMIWorkerActor {
   trait WMIWorkerMessage
-  case class WMIWorkerNumEntriesRequest(instance: ComInstance)
+  case class WMIWorkerNumEntriesRequest(instance: ComInstance) extends WMIWorkerMessage
   case class WMIWorkerNumEntries(
-      instance:ComInstance,
-      entries: Map[String, Double],
-      timestamp:Long,
-      duration:Long)
+    instance: ComInstance,
+    entries: Map[String, Double],
+    timestamp: Long,
+    duration: Long) extends WMIWorkerMessage
+  case class WMIWorkerDumpTo(
+    toWriter: ActorRef,
+    comClass: ComClass) extends WMIWorkerMessage
   def props() = Props(new WMIWorkerActor)
 }
 
@@ -65,12 +67,20 @@ class WMIWorkerActor extends Actor with Logging {
     wmi.close()
   }
 
+  def mkWMIWorkerNumEntries(instance: ComInstance) = {
+    val started = System.currentTimeMillis
+    val entries = instance.numEntries
+    val duration = System.currentTimeMillis - started
+    WMIWorkerNumEntries(instance, entries, started, duration)
+  }
+
   def receive = {
     case WMIWorkerNumEntriesRequest(instance) =>
-      val started  = System.currentTimeMillis
-      val entries  = instance.numEntries
-      val duration = System.currentTimeMillis - started
-      sender ! WMIWorkerNumEntries(instance, entries, started, duration)
+      sender ! mkWMIWorkerNumEntries(instance)
+    case WMIWorkerDumpTo(toWriter, comClass) =>
+      comClass.instances.foreach { instance =>
+        toWriter ! mkWMIWorkerNumEntries(instance)
+      }
   }
 }
 
@@ -171,46 +181,46 @@ class WMIActor extends Actor with Logging {
     case WMIStartMonitor =>
       for {
         singletons2follow <- singletonsClassesFuture
-        otherClasses <- otherClassesFuture 
+        otherClasses <- otherClassesFuture
       } {
         val hostname = java.net.InetAddress.getLocalHost.getHostName
         val destFile = new File(s"metrics-$hostname.log")
         val writer = context.actorOf(WriterActor.props(destFile))
-        
+
         val highfreqmonitor = context.actorOf(
-            WMIMonitorActor.props(
-                workers,
-                writer,
-                30.seconds,
-                singletons2follow
-                )
-            )
+          WMIMonitorActor.props(
+            workers,
+            writer,
+            30.seconds,
+            singletons2follow
+          )
+        )
       }
   }
 }
 
-
 object WMIMonitorActor {
   object Tick
   def props(
-      wmiWorkers:ActorRef,
-      writerActor:ActorRef,
-      delay:FiniteDuration,
-      tofollow:Iterable[ComClass]) = 
+    wmiWorkers: ActorRef,
+    writerActor: ActorRef,
+    delay: FiniteDuration,
+    tofollow: Iterable[ComClass]) =
     Props(new WMIMonitorActor(wmiWorkers, writerActor, delay, tofollow))
 }
 
 class WMIMonitorActor(
-    wmiWorkers:ActorRef,
-    writerActor:ActorRef,
-    delay:FiniteDuration,
-    tofollow:Iterable[ComClass]) extends Actor {
+  wmiWorkers: ActorRef,
+  writerActor: ActorRef,
+  delay: FiniteDuration,
+  tofollow: Iterable[ComClass]) extends Actor {
   import WMIMonitorActor._
+  import WMIWorkerActor._
   import context.dispatcher
-  
+
   def receive = {
-    case Tick => 
-      for{cl <- tofollow}{}
+    case Tick =>
+      for { cl <- tofollow } { wmiWorkers ! WMIWorkerDumpTo(writerActor, cl) }
       context.system.scheduler.scheduleOnce(delay, self, "foo")
   }
 }
