@@ -95,9 +95,9 @@ trait WMI extends Logging {
   def getPerfClasses() = 
     getClasses
        .filter(_.name contains "PerfRaw")
+       .filterNot(_.name == "Win32_PerfRawData")
        .filterNot(_.name contains "Costly")
        .filterNot(_.name contains "PerfProc_Thread")
-       .filterNot(_.name == "Win32_PerfFormattedData")
        .filterNot(_.name contains "Teredo")
        .filterNot(_.name contains "Print")
        .filterNot(_.name contains "USB")
