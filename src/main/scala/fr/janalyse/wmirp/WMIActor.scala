@@ -236,7 +236,7 @@ class WMIActor extends Actor with Logging {
         
         
         def verylowInstFilter(inst: ComInstance):Boolean = {
-          !lowInstFilter(inst) && !inst.comClass.name.contains("PerfOS_PagingFile")
+          !lowInstFilter(inst) && !inst.comClass.name.contains("PagingFile")
         }
         
         val verylowfreqmonitor = context.actorOf(
