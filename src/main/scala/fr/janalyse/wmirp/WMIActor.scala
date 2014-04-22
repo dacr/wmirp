@@ -100,7 +100,7 @@ class WMIWorkerActor extends Actor with Logging {
         comClass.instances
       }
       instances.foreach { instance =>
-          mkWMIWorkerNumEntries(instance).foreach{msg => sender ! msg}
+          mkWMIWorkerNumEntries(instance).foreach{msg => toWriter ! msg}
       }
   }
 }
