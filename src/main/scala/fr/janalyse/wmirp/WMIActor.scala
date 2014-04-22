@@ -45,7 +45,7 @@ object WMIWorkerActor {
   case class WMIWorkerNumEntriesRequest(instance: ComInstance) extends WMIWorkerMessage
   case class WMIWorkerNumEntries(
     instance: ComInstance,
-    entries: Map[String, Long],
+    entries: Map[String, BigInt],
     timestamp: Long,
     duration: Long) extends WMIWorkerMessage
   case class WMIWorkerDumpTo(
@@ -95,7 +95,7 @@ class WMIWorkerActor extends Actor with Logging {
         comClass.instances
       }
       instances.foreach { instance =>
-        Thread.sleep(50) // to limit cpu impact => VERY TEMPORARY HACK
+        //Thread.sleep(50) // to limit cpu impact => VERY TEMPORARY HACK
         toWriter ! mkWMIWorkerNumEntries(instance)
       }
   }
@@ -109,10 +109,10 @@ object WMIActor {
 
   object WMIStatusRequest extends WMIMessage
   case class WMIStatus(
-    classesCount: Int,
-    threadsCount: Int,
-    processesCount: Int,
-    percentProcessorTime: Int) extends WMIMessage {
+    classesCount: BigInt,
+    threadsCount: BigInt,
+    processesCount: BigInt,
+    percentProcessorTime: BigInt) extends WMIMessage {
     override def toString() = {
       s"""Status :
          | Perf. classes count       : $classesCount
@@ -184,9 +184,9 @@ class WMIActor extends Actor with Logging {
       } {
         caller ! WMIStatus(
           classesCount = classescount,
-          threadsCount = sysstate.get("Threads").map(_.toInt).getOrElse(-1),
-          processesCount = sysstate.get("Processes").map(_.toInt).getOrElse(-1),
-          percentProcessorTime = procstate.get("PercentProcessorTime").map(_.toInt).getOrElse(-1))
+          threadsCount = sysstate.get("Threads").getOrElse(BigInt(-1)),
+          processesCount = sysstate.get("Processes").getOrElse(BigInt(-1)),
+          percentProcessorTime = procstate.get("PercentProcessorTime").getOrElse(BigInt(-1)))
       }
     case WMIListRequest =>
       val caller = sender
@@ -269,7 +269,7 @@ class WMIMonitorActor(
   def receive = {
     case Tick =>
       for { cl <- tofollow } {
-        Thread.sleep(100) // to limit cpu impact => VERY TEMPORARY HACK
+        //Thread.sleep(100) // to limit cpu impact => VERY TEMPORARY HACK
         wmiWorkers ! WMIWorkerDumpTo(writerActor, cl, instanceFilter, useCache)
       }
       context.system.scheduler.scheduleOnce(delay, self, Tick)

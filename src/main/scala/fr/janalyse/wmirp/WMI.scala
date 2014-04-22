@@ -51,9 +51,9 @@ case class ComInstance(comClass: ComClass, name: Option[String]) {
       case (k,numRE2(v)) => k->conv(v)
     }
   }
-  def longEntries(implicit wmi:WMI): Map[String, Long] = {
+  def longEntries(implicit wmi:WMI): Map[String, BigInt] = {
     entries.map{case (k,v) => k->v.toString()}.collect {
-      case (k,longRE(v)) => k->v.toLong
+      case (k,longRE(v)) => k->BigInt(v)
     }
   }
 }
