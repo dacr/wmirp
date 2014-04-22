@@ -36,7 +36,7 @@ class WriterActor(destFile: File) extends Actor {
       for { (key, value) <- entries } {
         output.println(s"\t$key=$value")
       }
-      //output.flush() // leave the OS 
+    //output.flush() // leave the OS 
   }
 }
 
@@ -45,12 +45,14 @@ object WMIWorkerActor {
   case class WMIWorkerNumEntriesRequest(instance: ComInstance) extends WMIWorkerMessage
   case class WMIWorkerNumEntries(
     instance: ComInstance,
-    entries: Map[String, Double],
+    entries: Map[String, Long],
     timestamp: Long,
     duration: Long) extends WMIWorkerMessage
   case class WMIWorkerDumpTo(
     toWriter: ActorRef,
-    comClass: ComClass) extends WMIWorkerMessage
+    comClass: ComClass,
+    instanceFilter: (ComInstance) => Boolean,
+    useCache:Boolean) extends WMIWorkerMessage
   def props() = Props(new WMIWorkerActor)
 }
 
@@ -70,26 +72,27 @@ class WMIWorkerActor extends Actor with Logging {
 
   def mkWMIWorkerNumEntries(instance: ComInstance) = {
     val started = System.currentTimeMillis
-    val entries = instance.numEntries
+    val entries = instance.longEntries
     val duration = System.currentTimeMillis - started
     WMIWorkerNumEntries(instance, entries, started, duration)
   }
 
-  var singletonInstanceCache=Map.empty[ComClass, List[ComInstance]]
-  
+  var instancesCache = Map.empty[ComClass, List[ComInstance]]
+
   def receive = {
     case WMIWorkerNumEntriesRequest(instance) =>
       sender ! mkWMIWorkerNumEntries(instance)
-    case WMIWorkerDumpTo(toWriter, comClass) =>
-      val instances =
-        singletonInstanceCache
-        .get(comClass)
-        .getOrElse {
-        val found = comClass.instances
-        if (found.size==1 && found.head.name.isEmpty) {
-          singletonInstanceCache += comClass -> (found.head::Nil)
-        }
-        found
+    case WMIWorkerDumpTo(toWriter, comClass, instanceFilter,useCache) =>
+      val instances = if (useCache) {
+        instancesCache
+          .get(comClass)
+          .getOrElse {
+            val found = comClass.instances.filter(instanceFilter)
+            instancesCache += comClass -> found
+            found
+          }
+      } else {
+        comClass.instances
       }
       instances.foreach { instance =>
         toWriter ! mkWMIWorkerNumEntries(instance)
@@ -156,7 +159,7 @@ class WMIActor extends Actor with Logging {
 
   override def preStart() {
     wmi = new WMI {}
-    classesFuture = future { wmi.getPerfClasses }
+    classesFuture = future { wmi.getPerfClasses.filter(_.instances.size>0) }
   }
 
   override def postStop() {
@@ -202,20 +205,31 @@ class WMIActor extends Actor with Logging {
 
         val highfreqmonitor = context.actorOf(
           WMIMonitorActor.props(
-            workers,
-            writer,
-            20.seconds,
-            singletons2follow
+            wmiWorkers = workers,
+            writerActor = writer,
+            delay = 20.seconds,
+            tofollow = singletons2follow,
+            useCache = true
           )
         )
         highfreqmonitor ! WMIMonitorActor.Tick
-        
+
+        def lowInstFilter(inst: ComInstance): Boolean = {
+          inst
+            .name
+            .filter(n =>
+              (n == "_Total") || (n == "Total") || (n contains "Global"))
+            .isDefined
+        }
+
         val lowfreqmonitor = context.actorOf(
           WMIMonitorActor.props(
-            workers,
-            writer,
-            60.seconds,
-            otherClasses
+            wmiWorkers = workers,
+            writerActor = writer,
+            delay = 60.seconds,
+            tofollow = otherClasses,
+            instanceFilter = lowInstFilter,
+            useCache = true
           )
         )
         lowfreqmonitor ! WMIMonitorActor.Tick
@@ -230,22 +244,28 @@ object WMIMonitorActor {
     wmiWorkers: ActorRef,
     writerActor: ActorRef,
     delay: FiniteDuration,
-    tofollow: Iterable[ComClass]) =
-    Props(new WMIMonitorActor(wmiWorkers, writerActor, delay, tofollow))
+    tofollow: Iterable[ComClass],
+    instanceFilter: (ComInstance) => Boolean = _ => true,
+    useCache:Boolean=true) =
+    Props(new WMIMonitorActor(wmiWorkers, writerActor, delay, tofollow, instanceFilter,useCache))
 }
 
 class WMIMonitorActor(
   wmiWorkers: ActorRef,
   writerActor: ActorRef,
   delay: FiniteDuration,
-  tofollow: Iterable[ComClass]) extends Actor {
+  tofollow: Iterable[ComClass],
+  instanceFilter: (ComInstance) => Boolean,
+  useCache:Boolean) extends Actor {
   import WMIMonitorActor._
   import WMIWorkerActor._
   import context.dispatcher
 
   def receive = {
     case Tick =>
-      for { cl <- tofollow } { wmiWorkers ! WMIWorkerDumpTo(writerActor, cl) }
+      for { cl <- tofollow } {
+        wmiWorkers ! WMIWorkerDumpTo(writerActor, cl, instanceFilter, useCache)
+        }
       context.system.scheduler.scheduleOnce(delay, self, Tick)
   }
 }

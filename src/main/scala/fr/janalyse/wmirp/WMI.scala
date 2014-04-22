@@ -35,19 +35,25 @@ object ComClass {
   implicit def string2ComClass(path: String): ComClass = ComClass(path)
   val numRE1 = """(\d+(?:[.,]\d+)?)""".r
   val numRE2 = """([.,]\d+)""".r
+  val longRE = """(\d+)""".r
 }
 
 case class ComInstance(comClass: ComClass, name: Option[String]) {
-  import ComClass.{numRE1,numRE2}
+  import ComClass.{numRE1,numRE2,longRE}
   
   def entries(implicit wmi: WMI): Map[String, Variant] =
     wmi.getAttributesValues(this)
 
-  def numEntries(implicit wmi:WMI): Map[String, Double] = {
+  def doubleEntries(implicit wmi:WMI): Map[String, Double] = {
     def conv(in:String)=(in.replace(",",".")).toDouble
     entries.map{case (k,v) => k->v.toString()}.collect {
       case (k,numRE1(v)) => k->conv(v)
       case (k,numRE2(v)) => k->conv(v)
+    }
+  }
+  def longEntries(implicit wmi:WMI): Map[String, Long] = {
+    entries.map{case (k,v) => k->v.toString()}.collect {
+      case (k,longRE(v)) => k->v.toLong
     }
   }
 }
@@ -108,6 +114,9 @@ trait WMI extends Logging {
        .filterNot(_.name contains "IntelStorageCounters")
        .filterNot(_.name contains "Counters_WFPv4")
        .filterNot(_.name contains "Counters_WFPv6")
+       .filterNot(_.name contains "LocalSessionManager_TerminalServices")
+       .filterNot(_.name contains "Counters_ProcessorInformation")
+       .filterNot(_.name contains "TermService_TerminalServicesSession")
 
   def getClassAttributes(comClass: ComClass): List[String] = {
     var result = List.empty[String]
