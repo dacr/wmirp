@@ -12,7 +12,7 @@ mainClass in assembly := Some("fr.janalyse.wmirp.Main")
 
 jarName in assembly := "wmirp.jar"
 
-libraryDependencies ++= Dependencies.akka
+libraryDependencies ++= Dependencies.all
 
 classpathTypes ++= Set("jnilib", "dll")
 

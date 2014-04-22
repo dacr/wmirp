@@ -1,5 +1,6 @@
 *.class
 *.log
+nohup.out
 
 # sbt specific
 .cache/
@@ -18,4 +19,5 @@ project/plugins/project/
 .classpath
 .project
 .cache
+
 
