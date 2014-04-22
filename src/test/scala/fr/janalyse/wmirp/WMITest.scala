@@ -93,7 +93,7 @@ class WMITest extends FunSuite with ShouldMatchers with BeforeAndAfterAll {
   }
 
   
-  test("Performance walk - search metrics") {
+  ignore("Performance walk - search metrics") {
     val numRE = """(\d+(?:[.,]\d+)?)""".r
     val found = for {
       perfclass <- wmi.getPerfClasses
