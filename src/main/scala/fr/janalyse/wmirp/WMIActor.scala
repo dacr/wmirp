@@ -225,13 +225,28 @@ class WMIActor extends Actor with Logging {
           WMIMonitorActor.props(
             wmiWorkers = workers,
             writerActor = writer,
-            delay = 60.seconds,
+            delay = 40.seconds,
             tofollow = otherClasses,
             instanceFilter = lowInstFilter,
             useCache = true
           )
         )
         lowfreqmonitor ! WMIMonitorActor.Tick
+
+        
+        
+        
+        val verylowfreqmonitor = context.actorOf(
+          WMIMonitorActor.props(
+            wmiWorkers = workers,
+            writerActor = writer,
+            delay = 60.seconds,
+            tofollow = otherClasses,
+            instanceFilter = (inst) => !lowInstFilter(inst),
+            useCache = true
+          )
+        )
+        verylowfreqmonitor ! WMIMonitorActor.Tick
 
       }
   }
