@@ -104,6 +104,10 @@ trait WMI extends Logging {
        .filterNot(_.name contains "IPsec")
        .filterNot(_.name contains "PeerNameResolution")
        .filterNot(_.name contains "PeerDistSvc")
+       .filterNot(_.name contains "Tcpip_ICMP")
+       .filterNot(_.name contains "IntelStorageCounters")
+       .filterNot(_.name contains "Counters_WFPv4")
+       .filterNot(_.name contains "Counters_WFPv6")
 
   def getClassAttributes(comClass: ComClass): List[String] = {
     var result = List.empty[String]

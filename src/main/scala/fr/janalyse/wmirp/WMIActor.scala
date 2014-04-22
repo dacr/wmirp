@@ -31,7 +31,7 @@ class WriterActor(destFile: File) extends Actor {
 
   def receive = {
     case WMIWorkerNumEntries(instance, entries, timestamp, duration) =>
-      val id = instance.comClass.name + instance.name.map("/" + _)
+      val id = instance.comClass.name + instance.name.map("/" + _).getOrElse("/@")
       output.println(s"$timestamp $id (${duration}ms)")
       for { (key, value) <- entries } {
         output.println(s"\t$key=$value")
@@ -75,11 +75,23 @@ class WMIWorkerActor extends Actor with Logging {
     WMIWorkerNumEntries(instance, entries, started, duration)
   }
 
+  var singletonInstanceCache=Map.empty[ComClass, List[ComInstance]]
+  
   def receive = {
     case WMIWorkerNumEntriesRequest(instance) =>
       sender ! mkWMIWorkerNumEntries(instance)
     case WMIWorkerDumpTo(toWriter, comClass) =>
-      comClass.instances.foreach { instance =>
+      val instances =
+        singletonInstanceCache
+        .get(comClass)
+        .getOrElse {
+        val found = comClass.instances
+        if (found.size==1 && found.head.name.isEmpty) {
+          singletonInstanceCache += comClass -> (found.head::Nil)
+        }
+        found
+      }
+      instances.foreach { instance =>
         toWriter ! mkWMIWorkerNumEntries(instance)
       }
   }
@@ -152,7 +164,7 @@ class WMIActor extends Actor with Logging {
   }
 
   val workers = context.actorOf(
-    WMIWorkerActor.props.withRouter(SmallestMailboxRouter(5)),
+    WMIWorkerActor.props.withRouter(SmallestMailboxRouter(2)),
     "workersRouter")
 
   def receive = {
