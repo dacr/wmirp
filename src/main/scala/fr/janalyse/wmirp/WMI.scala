@@ -204,7 +204,8 @@ trait WMI extends Logging {
       }
     } catch {
       case e: ComFailException =>
-        logger.warn(s"Exception in Get operation with $id", e)
+        // TODO
+        //logger.warn(s"Exception in Get operation with $id", e)
         //throw e
     }
     result

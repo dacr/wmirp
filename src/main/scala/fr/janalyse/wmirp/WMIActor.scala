@@ -71,21 +71,22 @@ class WMIWorkerActor extends Actor with Logging {
   }
 
   def mkWMIWorkerNumEntries(instance: ComInstance) = {
-    val started = System.currentTimeMillis
-    val entries = instance.longEntries
-    val duration = System.currentTimeMillis - started
-    WMIWorkerNumEntries(instance, entries, started, duration)
+    try {
+      val started = System.currentTimeMillis
+      val entries = instance.longEntries
+      val duration = System.currentTimeMillis - started
+      Some(WMIWorkerNumEntries(instance, entries, started, duration))
+    } catch {
+      case x: Exception => None//TODO
+    }
   }
 
   var instancesCache = Map.empty[ComClass, List[ComInstance]]
 
   def receive = {
     case WMIWorkerNumEntriesRequest(instance) =>
-      try {
-        sender ! mkWMIWorkerNumEntries(instance)
-      } catch {
-        case x: Exception => //TODO
-      }
+      mkWMIWorkerNumEntries(instance).foreach{msg => sender ! msg}
+      
     case WMIWorkerDumpTo(toWriter, comClass, instanceFilter, useCache) =>
       val instances = if (useCache) {
         instancesCache
@@ -99,11 +100,7 @@ class WMIWorkerActor extends Actor with Logging {
         comClass.instances
       }
       instances.foreach { instance =>
-        try {
-          toWriter ! mkWMIWorkerNumEntries(instance)
-        } catch {
-          case x: Exception => //TODO
-        }
+          mkWMIWorkerNumEntries(instance).foreach{msg => sender ! msg}
       }
   }
 }
