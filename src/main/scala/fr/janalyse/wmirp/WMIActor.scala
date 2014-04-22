@@ -36,6 +36,7 @@ class WriterActor(destFile: File) extends Actor {
       for { (key, value) <- entries } {
         output.println(s"\t$key=$value")
       }
+      output.flush()
   }
 }
 
@@ -222,6 +223,6 @@ class WMIMonitorActor(
   def receive = {
     case Tick =>
       for { cl <- tofollow } { wmiWorkers ! WMIWorkerDumpTo(writerActor, cl) }
-      context.system.scheduler.scheduleOnce(delay, self, "foo")
+      context.system.scheduler.scheduleOnce(delay, self, Tick)
   }
 }
