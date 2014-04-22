@@ -243,7 +243,7 @@ class WMIActor extends Actor with Logging {
             delay = 60.seconds,
             tofollow = otherClasses,
             instanceFilter = (inst) => !lowInstFilter(inst),
-            useCache = true
+            useCache = false
           )
         )
         verylowfreqmonitor ! WMIMonitorActor.Tick
