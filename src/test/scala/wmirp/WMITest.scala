@@ -87,7 +87,7 @@ class WMITest extends FunSuite with ShouldMatchers with BeforeAndAfterAll {
     threads.get should be > (0)
   }
   
-  test("Get unknown instance") {
+  ignore("Get unknown instance") {
     val cpu = wmi.getInstance("Win32_PerfFormattedData_PerfOS_Processor", "trucmuche")
     cpu should be ('empty)
   }
