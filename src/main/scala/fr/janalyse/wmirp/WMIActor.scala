@@ -95,7 +95,7 @@ class WMIWorkerActor extends Actor with Logging {
         comClass.instances
       }
       instances.foreach { instance =>
-        //Thread.sleep(50) // to limit cpu impact => VERY TEMPORARY HACK
+        Thread.sleep(50) // to limit cpu impact => VERY TEMPORARY HACK
         toWriter ! mkWMIWorkerNumEntries(instance)
       }
   }
@@ -264,7 +264,7 @@ class WMIMonitorActor(
   def receive = {
     case Tick =>
       for { cl <- tofollow } {
-        //Thread.sleep(100) // to limit cpu impact => VERY TEMPORARY HACK
+        Thread.sleep(100) // to limit cpu impact => VERY TEMPORARY HACK
         wmiWorkers ! WMIWorkerDumpTo(writerActor, cl, instanceFilter, useCache)
       }
       context.system.scheduler.scheduleOnce(delay, self, Tick)
