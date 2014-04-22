@@ -1,19 +1,53 @@
 package fr.janalyse.wmirp
 
 import akka.actor.Actor
+import akka.actor.ActorRef
 import concurrent._
 import concurrent.duration._
-//import concurrent.ExecutionContext.Implicits.global
 import akka.actor.Props
 import com.typesafe.scalalogging.slf4j.Logging
 import akka.routing.SmallestMailboxRouter
 import akka.util.Timeout
 import akka.pattern.ask
+import java.io.PrintWriter
+import java.io.File
+
+object WriterActor {
+  def props(destFile:File) = Props(new WriterActor(destFile))
+}
+
+class WriterActor(destFile:File) extends Actor {
+  import WMIWorkerActor._
+  
+  var output:PrintWriter=_
+  
+  override def preStart() {
+    output = new PrintWriter(destFile)
+  }
+
+  override def postStop() {
+    output.close()
+  }
+
+  def receive = {
+    case WMIWorkerNumEntries(instance, entries, timestamp, duration) =>
+      val id = instance.comClass.name+instance.name.map("/"+_)
+      output.println(s"$timestamp $id (${duration}ms)")
+      for{ (key,value) <- entries} {
+        output.println(s"\t$key=$value")
+      }
+  }
+}
+
 
 object WMIWorkerActor {
   trait WMIWorkerMessage
   case class WMIWorkerNumEntriesRequest(instance: ComInstance)
-  case class WMIWorkerNumEntries(entries: Map[String, Double])
+  case class WMIWorkerNumEntries(
+      instance:ComInstance,
+      entries: Map[String, Double],
+      timestamp:Long,
+      duration:Long)
   def props() = Props(new WMIWorkerActor)
 }
 
@@ -33,8 +67,10 @@ class WMIWorkerActor extends Actor with Logging {
 
   def receive = {
     case WMIWorkerNumEntriesRequest(instance) =>
-      val entries = instance.numEntries
-      sender ! WMIWorkerNumEntries(entries)
+      val started  = System.currentTimeMillis
+      val entries  = instance.numEntries
+      val duration = System.currentTimeMillis - started
+      sender ! WMIWorkerNumEntries(instance, entries, started, duration)
   }
 }
 
@@ -60,10 +96,9 @@ object WMIActor {
     }
   }
 
-  object WMIDump extends WMIMessage
+  object WMIStartMonitor extends WMIMessage
 
-  def props =
-    Props(new WMIActor)
+  def props = Props(new WMIActor)
 }
 
 class WMIActor extends Actor with Logging {
@@ -74,23 +109,23 @@ class WMIActor extends Actor with Logging {
 
   implicit var wmi: WMI = _
 
-  var classes: Future[List[ComClass]] = _
+  var classesFuture: Future[List[ComClass]] = _
 
   lazy val processor = wmi.getInstance("""Win32_PerfFormattedData_PerfOS_Processor""", "_Total")
   lazy val system = wmi.getInstance("Win32_PerfFormattedData_PerfOS_System")
 
-  lazy val instancesNamesAtStart = classes.map { cls =>
+  lazy val instancesNamesAtStartFuture = classesFuture.map { cls =>
     cls.map(cl => cl -> cl.instancesNames).toMap
   }
 
   // Classes with one unik instance
-  lazy val singletonsClasses = instancesNamesAtStart.map {
+  lazy val singletonsClassesFuture = instancesNamesAtStartFuture.map {
     _.collect {
       case (cl, Nil) => cl
     }
   }
 
-  lazy val otherClasses = instancesNamesAtStart.map {
+  lazy val otherClassesFuture = instancesNamesAtStartFuture.map {
     _.collect {
       case (cl, names) if names.size > 0 => cl
     }
@@ -98,7 +133,7 @@ class WMIActor extends Actor with Logging {
 
   override def preStart() {
     wmi = new WMI {}
-    classes = future { wmi.getPerfClasses }
+    classesFuture = future { wmi.getPerfClasses }
   }
 
   override def postStop() {
@@ -116,9 +151,9 @@ class WMIActor extends Actor with Logging {
       val fsys = workers ? WMIWorkerNumEntriesRequest(system.get)
       val caller = sender()
       for {
-        WMIWorkerNumEntries(procstate) <- fproc
-        WMIWorkerNumEntries(sysstate) <- fsys
-        classescount <- classes.map(_.size)
+        WMIWorkerNumEntries(_, procstate, _, _) <- fproc
+        WMIWorkerNumEntries(_, sysstate, _, _) <- fsys
+        classescount <- classesFuture.map(_.size)
       } {
         caller ! WMIStatus(
           classesCount = classescount,
@@ -128,12 +163,54 @@ class WMIActor extends Actor with Logging {
       }
     case WMIListRequest =>
       val caller = sender
-      classes.onSuccess {
+      classesFuture.onSuccess {
         case x =>
           caller ! WMIList(x)
       }
 
-    case WMIDump =>
+    case WMIStartMonitor =>
+      for {
+        singletons2follow <- singletonsClassesFuture
+        otherClasses <- otherClassesFuture 
+      } {
+        val hostname = java.net.InetAddress.getLocalHost.getHostName
+        val destFile = new File(s"metrics-$hostname.log")
+        val writer = context.actorOf(WriterActor.props(destFile))
+        
+        val highfreqmonitor = context.actorOf(
+            WMIMonitorActor.props(
+                workers,
+                writer,
+                30.seconds,
+                singletons2follow
+                )
+            )
+      }
+  }
+}
 
+
+object WMIMonitorActor {
+  object Tick
+  def props(
+      wmiWorkers:ActorRef,
+      writerActor:ActorRef,
+      delay:FiniteDuration,
+      tofollow:Iterable[ComClass]) = 
+    Props(new WMIMonitorActor(wmiWorkers, writerActor, delay, tofollow))
+}
+
+class WMIMonitorActor(
+    wmiWorkers:ActorRef,
+    writerActor:ActorRef,
+    delay:FiniteDuration,
+    tofollow:Iterable[ComClass]) extends Actor {
+  import WMIMonitorActor._
+  import context.dispatcher
+  
+  def receive = {
+    case Tick => 
+      for{cl <- tofollow}{}
+      context.system.scheduler.scheduleOnce(delay, self, "foo")
   }
 }

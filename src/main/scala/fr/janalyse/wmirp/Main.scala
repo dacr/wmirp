@@ -41,6 +41,13 @@ class WMIConnectionHandlerActor(remote: InetSocketAddress, connection: ActorRef,
     case HttpRequest(GET, Uri.Path("/ping"), _, _, _) =>
       sender() ! HttpResponse(entity = "PONG")
     // ------------------------------------------------------------------
+    case HttpRequest(GET, Uri.Path("/quit"), _, _, _) =>
+      sender() ! HttpResponse(entity = "shutting down the system... 5 seconds delay")
+      future {
+        Thread.sleep(5000L)
+        context.system.shutdown()
+      }
+    // ------------------------------------------------------------------
     case HttpRequest(GET, Uri.Path("/"), _, _, _) =>
       implicit val timeout = Timeout(20 seconds)
       val fstate = wmiactor ? WMIStatusRequest
@@ -84,9 +91,12 @@ class WMIConnectionHandlerActor(remote: InetSocketAddress, connection: ActorRef,
 object Main {
   import java.io.File
 
+  // Change java library path dynamically
+  // coming from :
+  // http://fahdshariff.blogspot.fr/2011/08/changing-java-library-path-at-runtime.html
   def addLibraryPath(pathToAdd: String) {
     import java.lang.reflect.Field
-    val usrPathsField: Field = getClass().getClassLoader.getClass.getDeclaredField("usr_paths")
+    val usrPathsField: Field =  classOf[ClassLoader].getDeclaredField("usr_paths")
     usrPathsField.setAccessible(true)
 
     val paths = usrPathsField.get(null).asInstanceOf[Array[String]]
@@ -115,6 +125,7 @@ object Main {
 
     implicit val system = ActorSystem()
     val wmiactor = system.actorOf(WMIActor.props)
+    wmiactor ! WMIActor.WMIStartMonitor
     val myListener = system.actorOf(ListenerActor.props(wmiactor))
     IO(Http) ! Http.Bind(myListener, interface = "localhost", port = 9900)
     lib1.deleteOnExit()
