@@ -81,7 +81,11 @@ class WMIWorkerActor extends Actor with Logging {
 
   def receive = {
     case WMIWorkerNumEntriesRequest(instance) =>
-      sender ! mkWMIWorkerNumEntries(instance)
+      try {
+        sender ! mkWMIWorkerNumEntries(instance)
+      } catch {
+        case x: Exception => //TODO
+      }
     case WMIWorkerDumpTo(toWriter, comClass, instanceFilter, useCache) =>
       val instances = if (useCache) {
         instancesCache
@@ -95,7 +99,11 @@ class WMIWorkerActor extends Actor with Logging {
         comClass.instances
       }
       instances.foreach { instance =>
-        toWriter ! mkWMIWorkerNumEntries(instance)
+        try {
+          toWriter ! mkWMIWorkerNumEntries(instance)
+        } catch {
+          case x: Exception => //TODO
+        }
       }
   }
 }
@@ -233,12 +241,10 @@ class WMIActor extends Actor with Logging {
         )
         lowfreqmonitor ! WMIMonitorActor.Tick
 
-        
-        
-        def verylowInstFilter(inst: ComInstance):Boolean = {
+        def verylowInstFilter(inst: ComInstance): Boolean = {
           !lowInstFilter(inst) && !inst.comClass.name.contains("PagingFile")
         }
-        
+
         val verylowfreqmonitor = context.actorOf(
           WMIMonitorActor.props(
             wmiWorkers = workers,
