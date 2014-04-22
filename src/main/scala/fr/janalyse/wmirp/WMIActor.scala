@@ -111,14 +111,12 @@ object WMIActor {
   case class WMIStatus(
     classesCount: BigInt,
     threadsCount: BigInt,
-    processesCount: BigInt,
-    percentProcessorTime: BigInt) extends WMIMessage {
+    processesCount: BigInt) extends WMIMessage {
     override def toString() = {
       s"""Status :
          | Perf. classes count       : $classesCount
          | OS active threads count   : $threadsCount
          | OS active processes count : $processesCount
-         | Processor cpu time        : $percentProcessorTime %
          """.stripMargin
     }
   }
@@ -138,8 +136,8 @@ class WMIActor extends Actor with Logging {
 
   var classesFuture: Future[List[ComClass]] = _
 
-  lazy val processor = wmi.getInstance("""Win32_PerfFormattedData_PerfOS_Processor""", "_Total")
-  lazy val system = wmi.getInstance("Win32_PerfFormattedData_PerfOS_System")
+  lazy val processor = wmi.getInstance("""Win32_PerfRawData_PerfOS_Processor""", "_Total")
+  lazy val system = wmi.getInstance("Win32_PerfRawData_PerfOS_System")
 
   lazy val instancesNamesAtStartFuture = classesFuture.map { cls =>
     cls.map(cl => cl -> cl.instancesNames).toMap
@@ -174,19 +172,16 @@ class WMIActor extends Actor with Logging {
   def receive = {
     case WMIStatusRequest =>
       implicit val timeout = Timeout(20 seconds)
-      val fproc = workers ? WMIWorkerNumEntriesRequest(processor.get)
       val fsys = workers ? WMIWorkerNumEntriesRequest(system.get)
       val caller = sender()
       for {
-        WMIWorkerNumEntries(_, procstate, _, _) <- fproc
         WMIWorkerNumEntries(_, sysstate, _, _) <- fsys
         classescount <- classesFuture.map(_.size)
       } {
         caller ! WMIStatus(
           classesCount = classescount,
           threadsCount = sysstate.get("Threads").getOrElse(BigInt(-1)),
-          processesCount = sysstate.get("Processes").getOrElse(BigInt(-1)),
-          percentProcessorTime = procstate.get("PercentProcessorTime").getOrElse(BigInt(-1)))
+          processesCount = sysstate.get("Processes").getOrElse(BigInt(-1)))
       }
     case WMIListRequest =>
       val caller = sender
