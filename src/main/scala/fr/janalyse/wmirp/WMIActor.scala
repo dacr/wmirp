@@ -36,7 +36,7 @@ class WriterActor(destFile: File) extends Actor {
       for { (key, value) <- entries } {
         output.println(s"\t$key=$value")
       }
-      output.flush()
+      //output.flush() // leave the OS 
   }
 }
 
@@ -204,11 +204,22 @@ class WMIActor extends Actor with Logging {
           WMIMonitorActor.props(
             workers,
             writer,
-            30.seconds,
+            20.seconds,
             singletons2follow
           )
         )
         highfreqmonitor ! WMIMonitorActor.Tick
+        
+        val lowfreqmonitor = context.actorOf(
+          WMIMonitorActor.props(
+            workers,
+            writer,
+            60.seconds,
+            otherClasses
+          )
+        )
+        lowfreqmonitor ! WMIMonitorActor.Tick
+
       }
   }
 }
