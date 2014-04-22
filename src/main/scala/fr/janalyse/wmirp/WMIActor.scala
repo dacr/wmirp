@@ -13,10 +13,10 @@ import java.io.PrintWriter
 import java.io.File
 
 object WriterActor {
-  def props(destFile: File) = Props(new WriterActor(destFile))
+  def props(destFile: => File) = Props(new WriterActor(destFile))
 }
 
-class WriterActor(destFile: File) extends Actor {
+class WriterActor(destFile: => File) extends Actor {
   import WMIWorkerActor._
 
   var output: PrintWriter = _
@@ -52,7 +52,7 @@ object WMIWorkerActor {
     toWriter: ActorRef,
     comClass: ComClass,
     instanceFilter: (ComInstance) => Boolean,
-    useCache:Boolean) extends WMIWorkerMessage
+    useCache: Boolean) extends WMIWorkerMessage
   def props() = Props(new WMIWorkerActor)
 }
 
@@ -82,7 +82,7 @@ class WMIWorkerActor extends Actor with Logging {
   def receive = {
     case WMIWorkerNumEntriesRequest(instance) =>
       sender ! mkWMIWorkerNumEntries(instance)
-    case WMIWorkerDumpTo(toWriter, comClass, instanceFilter,useCache) =>
+    case WMIWorkerDumpTo(toWriter, comClass, instanceFilter, useCache) =>
       val instances = if (useCache) {
         instancesCache
           .get(comClass)
@@ -160,7 +160,7 @@ class WMIActor extends Actor with Logging {
 
   override def preStart() {
     wmi = new WMI {}
-    classesFuture = future { wmi.getPerfClasses.filter(_.instances.size>0) }
+    classesFuture = future { wmi.getPerfClasses.filter(_.instances.size > 0) }
   }
 
   override def postStop() {
@@ -200,9 +200,13 @@ class WMIActor extends Actor with Logging {
         singletons2follow <- singletonsClassesFuture
         otherClasses <- otherClassesFuture
       } {
-        val hostname = java.net.InetAddress.getLocalHost.getHostName
-        val destFile = new File(s"metrics-$hostname.log")
-        val writer = context.actorOf(WriterActor.props(destFile))
+        def genOutputFile: File = {
+          val filesdf = new java.text.SimpleDateFormat("yyMMdd_HHmmss")
+          val hostname = java.net.InetAddress.getLocalHost.getHostName
+          val ts = filesdf.format(new java.util.Date())
+          new File(s"metrics_${hostname}_${ts}.log")
+        }
+        val writer = context.actorOf(WriterActor.props(genOutputFile))
 
         val highfreqmonitor = context.actorOf(
           WMIMonitorActor.props(
@@ -247,8 +251,8 @@ object WMIMonitorActor {
     delay: FiniteDuration,
     tofollow: Iterable[ComClass],
     instanceFilter: (ComInstance) => Boolean = _ => true,
-    useCache:Boolean=true) =
-    Props(new WMIMonitorActor(wmiWorkers, writerActor, delay, tofollow, instanceFilter,useCache))
+    useCache: Boolean = true) =
+    Props(new WMIMonitorActor(wmiWorkers, writerActor, delay, tofollow, instanceFilter, useCache))
 }
 
 class WMIMonitorActor(
@@ -257,7 +261,7 @@ class WMIMonitorActor(
   delay: FiniteDuration,
   tofollow: Iterable[ComClass],
   instanceFilter: (ComInstance) => Boolean,
-  useCache:Boolean) extends Actor {
+  useCache: Boolean) extends Actor {
   import WMIMonitorActor._
   import WMIWorkerActor._
   import context.dispatcher
@@ -267,7 +271,7 @@ class WMIMonitorActor(
       for { cl <- tofollow } {
         Thread.sleep(100) // to limit cpu impact => VERY TEMPORARY HACK
         wmiWorkers ! WMIWorkerDumpTo(writerActor, cl, instanceFilter, useCache)
-        }
+      }
       context.system.scheduler.scheduleOnce(delay, self, Tick)
   }
 }
