@@ -248,7 +248,7 @@ class WMIActor extends Actor with Logging {
             writerActor = writer,
             delay = 60.seconds,
             tofollow = otherClasses,
-            instanceFilter = (inst) => ( && inst.name.,
+            instanceFilter = verylowInstFilter,
             useCache = false
           )
         )
