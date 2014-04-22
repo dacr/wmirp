@@ -206,7 +206,7 @@ class WMIActor extends Actor with Logging {
           WMIMonitorActor.props(
             wmiWorkers = workers,
             writerActor = writer,
-            delay = 20.seconds,
+            delay = 10.seconds,
             tofollow = singletons2follow,
             useCache = true
           )
@@ -225,7 +225,7 @@ class WMIActor extends Actor with Logging {
           WMIMonitorActor.props(
             wmiWorkers = workers,
             writerActor = writer,
-            delay = 40.seconds,
+            delay = 30.seconds,
             tofollow = otherClasses,
             instanceFilter = lowInstFilter,
             useCache = true
