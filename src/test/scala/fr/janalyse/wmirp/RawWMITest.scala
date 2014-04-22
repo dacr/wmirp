@@ -87,7 +87,7 @@ class RawWMITest extends FunSuite with ShouldMatchers with BeforeAndAfterAll {
   test("get test 2") {
     val ob = wmiconnect.invoke(
       "Get",
-      """\\.\root\cimv2:Win32_PerfFormattedData_PerfOS_Processor.Name="_Total"""").toDispatch() // => SWbemObject
+      new Variant("""\\.\root\cimv2:Win32_PerfFormattedData_PerfOS_Processor.Name="_Total"""")).toDispatch() // => SWbemObject
     val name = Dispatch.call(ob, "Name").getString()
     val idle = Dispatch.get(ob, "PercentIdleTime")
     val user = Dispatch.get(ob, "PercentProcessorTime")
@@ -98,7 +98,7 @@ class RawWMITest extends FunSuite with ShouldMatchers with BeforeAndAfterAll {
   }
 
   test("get test 3") {
-    val ob = wmiconnect.invoke("Get","""\\.\root\cimv2:Win32_PerfFormattedData_PerfOS_Processor.Name="_Total"""").toDispatch() // => SWbemObject
+    val ob = wmiconnect.invoke("Get",new Variant("""\\.\root\cimv2:Win32_PerfFormattedData_PerfOS_Processor.Name="_Total"""")).toDispatch() // => SWbemObject
     val proc = new ActiveXComponent(ob)
 
     val name = proc.getProperty("Name") //Dispatch.call(ob, "Name").getString()

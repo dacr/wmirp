@@ -117,6 +117,7 @@ trait WMI extends Logging {
        .filterNot(_.name contains "LocalSessionManager_TerminalServices")
        .filterNot(_.name contains "Counters_ProcessorInformation")
        .filterNot(_.name contains "TermService_TerminalServicesSession")
+       .filterNot(_.name contains "RemoteAccess_RAS")
 
   def getClassAttributes(comClass: ComClass): List[String] = {
     var result = List.empty[String]
