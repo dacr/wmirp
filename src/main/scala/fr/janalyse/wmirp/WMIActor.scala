@@ -11,12 +11,17 @@ import akka.util.Timeout
 import akka.pattern.ask
 import java.io.PrintWriter
 import java.io.File
+import akka.dispatch.RequiresMessageQueue
+import akka.dispatch.BoundedMessageQueueSemantics
 
 object WriterActor {
   def props(destFile: => File) = Props(new WriterActor(destFile))
 }
 
-class WriterActor(destFile: => File) extends Actor {
+class WriterActor(destFile: => File)
+  extends Actor
+  with RequiresMessageQueue[BoundedMessageQueueSemantics] {
+  
   import WMIWorkerActor._
 
   var output: PrintWriter = _
@@ -36,7 +41,7 @@ class WriterActor(destFile: => File) extends Actor {
       for { (key, value) <- entries } {
         output.println(s"\t$key=$value")
       }
-    output.flush() 
+    //output.flush() 
   }
 }
 
@@ -77,7 +82,7 @@ class WMIWorkerActor extends Actor with Logging {
       val duration = System.currentTimeMillis - started
       Some(WMIWorkerNumEntries(instance, entries, started, duration))
     } catch {
-      case x: Exception => None//TODO
+      case x: Exception => None //TODO
     }
   }
 
@@ -85,8 +90,8 @@ class WMIWorkerActor extends Actor with Logging {
 
   def receive = {
     case WMIWorkerNumEntriesRequest(instance) =>
-      mkWMIWorkerNumEntries(instance).foreach{msg => sender ! msg}
-      
+      mkWMIWorkerNumEntries(instance).foreach { msg => sender ! msg }
+
     case WMIWorkerDumpTo(toWriter, comClass, instanceFilter, useCache) =>
       val instances = if (useCache) {
         instancesCache
@@ -100,7 +105,7 @@ class WMIWorkerActor extends Actor with Logging {
         comClass.instances
       }
       instances.foreach { instance =>
-          mkWMIWorkerNumEntries(instance).foreach{msg => toWriter ! msg}
+        mkWMIWorkerNumEntries(instance).foreach { msg => toWriter ! msg }
       }
   }
 }
@@ -170,7 +175,7 @@ class WMIActor extends Actor with Logging {
   }
 
   val workers = context.actorOf(
-    WMIWorkerActor.props.withRouter(SmallestMailboxRouter(2)),
+    WMIWorkerActor.props.withRouter(SmallestMailboxRouter(4)),
     "workersRouter")
 
   def receive = {
@@ -211,11 +216,9 @@ class WMIActor extends Actor with Logging {
           WMIMonitorActor.props(
             wmiWorkers = workers,
             writerActor = writer,
-            delay = 10.seconds,
+            delay = 20.seconds,
             tofollow = singletons2follow,
-            useCache = true
-          )
-        )
+            useCache = true))
         highfreqmonitor ! WMIMonitorActor.Tick
 
         def lowInstFilter(inst: ComInstance): Boolean = {
@@ -230,12 +233,10 @@ class WMIActor extends Actor with Logging {
           WMIMonitorActor.props(
             wmiWorkers = workers,
             writerActor = writer,
-            delay = 30.seconds,
+            delay = 40.seconds,
             tofollow = otherClasses,
             instanceFilter = lowInstFilter,
-            useCache = true
-          )
-        )
+            useCache = true))
         lowfreqmonitor ! WMIMonitorActor.Tick
 
         def verylowInstFilter(inst: ComInstance): Boolean = {
@@ -246,12 +247,10 @@ class WMIActor extends Actor with Logging {
           WMIMonitorActor.props(
             wmiWorkers = workers,
             writerActor = writer,
-            delay = 60.seconds,
+            delay = 90.seconds,
             tofollow = otherClasses,
             instanceFilter = verylowInstFilter,
-            useCache = false
-          )
-        )
+            useCache = false))
         verylowfreqmonitor ! WMIMonitorActor.Tick
 
       }
