@@ -66,7 +66,7 @@ class WMIConnectionHandlerActor(remote: InetSocketAddress, connection: ActorRef,
       flist.onComplete {
         case Failure(ex) => caller ! HttpResponse(entity = ex.getMessage)
         case Success(wmil: WMIList) =>
-          val resp = for { cl <- wmil.classes } yield { cl.name }
+          val resp = for { cl <- wmil.classes.sortBy{_.name} } yield { cl.name }
           caller ! HttpResponse(entity = resp.mkString("\n"))
         case Success(other) => caller ! HttpResponse(entity = "Not understood")
       }

@@ -72,7 +72,7 @@ class WMIWorkerActor extends Actor with Logging {
   }
 
   override def postStop() {
-    wmi.close()
+    if (wmi!=null) wmi.close()
   }
 
   def mkWMIWorkerNumEntries(instance: ComInstance) = {
@@ -171,7 +171,7 @@ class WMIActor extends Actor with Logging {
   }
 
   override def postStop() {
-    wmi.close()
+    if (wmi!=null) wmi.close()
   }
 
   val workers = context.actorOf(
