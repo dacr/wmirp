@@ -13,7 +13,7 @@ import com.jacob.com.Dispatch
 import com.jacob.com.EnumVariant
 import com.jacob.com.Variant
 
-/*
+
 class WMITest extends FunSuite with ShouldMatchers with BeforeAndAfterAll {
   implicit var wmi: WMI = _
 
@@ -112,4 +112,3 @@ class WMITest extends FunSuite with ShouldMatchers with BeforeAndAfterAll {
   }
   
 }
-*/
