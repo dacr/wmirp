@@ -13,7 +13,7 @@ import com.jacob.com.Dispatch
 import com.jacob.com.EnumVariant
 import com.jacob.com.Variant
 
-/*
+
 class WMITest extends FunSuite with ShouldMatchers with BeforeAndAfterAll {
   implicit var wmi: WMI = _
 
@@ -41,6 +41,14 @@ class WMITest extends FunSuite with ShouldMatchers with BeforeAndAfterAll {
     system should be ('defined)
   }
 
+  test("Get class attributes") {
+    val processorcl = ComClass("Win32_PerfRawData_PerfOS_Processor")
+    val attrs = processorcl.attributes
+    attrs.size should be > (0)
+    attrs should contain ("PercentProcessorTime")
+    attrs should contain ("PercentIdleTime")
+  }
+  
   test("Get class instances") {
     val processors = wmi.getInstances("Win32_PerfFormattedData_PerfOS_Processor")
     processors.size should be > (0)
@@ -94,7 +102,7 @@ class WMITest extends FunSuite with ShouldMatchers with BeforeAndAfterAll {
   }
 
   
-  ignore("Performance walk - search metrics") {
+  test("Performance walk - search metrics") {
     val numRE = """(\d+(?:[.,]\d+)?)""".r
     val found = for {
       perfclass <- wmi.getPerfClasses
@@ -112,4 +120,3 @@ class WMITest extends FunSuite with ShouldMatchers with BeforeAndAfterAll {
   }
   
 }
-*/

@@ -117,10 +117,12 @@ object Main {
     val destdir = scala.util.Properties.tmpDir + "/wmirp-libs"
     val destdirfile = new File(destdir)
     destdirfile.mkdirs()
-    val lib1 = new File(destdirfile, "jacob-1.17-x64.dll")
-    val lib2 = new File(destdirfile, "jacob-1.17-x86.dll")
-    res2file("jacob-1.17-x64.dll", lib1)
-    res2file("jacob-1.17-x86.dll", lib2)
+    val n1 = "jacob-1.18-M2-x64.dll"
+    val n2 = "jacob-1.18-M2-x86.dll"
+    val lib1 = new File(destdirfile, n1)
+    val lib2 = new File(destdirfile, n2)
+    res2file(n1, lib1)
+    res2file(n2, lib2)
     addLibraryPath(destdir)
 
     implicit val system = ActorSystem()

@@ -39,21 +39,21 @@ object ComClass {
 }
 
 case class ComInstance(comClass: ComClass, name: Option[String]) {
-  import ComClass.{numRE1,numRE2,longRE}
-  
+  import ComClass.{ numRE1, numRE2, longRE }
+
   def entries(implicit wmi: WMI): Map[String, Variant] =
     wmi.getAttributesValues(this)
 
-  def doubleEntries(implicit wmi:WMI): Map[String, Double] = {
-    def conv(in:String)=(in.replace(",",".")).toDouble
-    entries.map{case (k,v) => k->v.toString()}.collect {
-      case (k,numRE1(v)) => k->conv(v)
-      case (k,numRE2(v)) => k->conv(v)
+  def doubleEntries(implicit wmi: WMI): Map[String, Double] = {
+    def conv(in: String) = (in.replace(",", ".")).toDouble
+    entries.map { case (k, v) => k -> v.toString() }.collect {
+      case (k, numRE1(v)) => k -> conv(v)
+      case (k, numRE2(v)) => k -> conv(v)
     }
   }
-  def longEntries(implicit wmi:WMI): Map[String, BigInt] = {
-    entries.map{case (k,v) => k->v.toString()}.collect {
-      case (k,longRE(v)) => k->BigInt(v)
+  def longEntries(implicit wmi: WMI): Map[String, BigInt] = {
+    entries.map { case (k, v) => k -> v.toString() }.collect {
+      case (k, longRE(v)) => k -> BigInt(v)
     }
   }
 }
@@ -67,7 +67,25 @@ trait WMI extends Logging {
     try {
       todo(dispatch)
     } finally {
-      dispatch.safeRelease()
+      //dispatch.safeRelease()
+    }
+  }
+
+  def use[FROM <% { def safeRelease(): Unit }, T](from: => FROM)(todo: FROM => T): T = {
+    val res = from
+    try {
+      todo(res)
+    } finally {
+      //res.safeRelease()
+    }
+  }
+
+  def dispatch[FROM <: Variant, T](from: => FROM)(todos: Dispatch => T): T = {
+    val res = from
+    try {
+      use(from.toDispatch())(todos)
+    } finally {
+      //res.safeRelease()
     }
   }
 
@@ -90,39 +108,39 @@ trait WMI extends Logging {
 
   /**
    * WMI perf class post fixed with Costly are very long to process, so don't scan them.
-   * 
+   *
    */
-  def getPerfClasses() = 
+  def getPerfClasses() =
     getClasses
-       .filter(_.name contains "PerfRaw")
-       .filterNot(_.name == "Win32_PerfRawData")
-       .filterNot(_.name contains "Costly")
-       .filterNot(_.name contains "PerfProc_Thread")
-       .filterNot(_.name contains "Teredo")
-       .filterNot(_.name contains "Print")
-       .filterNot(_.name contains "USB")
-       .filterNot(_.name contains "MSDTCBridge")
-       .filterNot(_.name contains "ServiceModel")
-       .filterNot(_.name contains "MediaPlayer")
-       .filterNot(_.name contains "TapiSrv_Tele")
-       .filterNot(_.name contains "PowerMeter")
-       .filterNot(_.name contains "WindowsWorkflow")
-       .filterNot(_.name contains "IPsec")
-       .filterNot(_.name contains "PeerNameResolution")
-       .filterNot(_.name contains "PeerDistSvc")
-       .filterNot(_.name contains "Tcpip_ICMP")
-       .filterNot(_.name contains "IntelStorageCounters")
-       .filterNot(_.name contains "Counters_WFPv4")
-       .filterNot(_.name contains "Counters_WFPv6")
-       .filterNot(_.name contains "LocalSessionManager_TerminalServices")
-       .filterNot(_.name contains "Counters_ProcessorInformation")
-       .filterNot(_.name contains "TermService_TerminalServicesSession")
-       .filterNot(_.name contains "RemoteAccess_RAS")
-       .filterNot(_.name contains "WSearch")
+      .filter(_.name contains "PerfRaw")
+      .filterNot(_.name == "Win32_PerfRawData")
+      .filterNot(_.name contains "Costly")
+      .filterNot(_.name contains "PerfProc_Thread")
+      .filterNot(_.name contains "Teredo")
+      .filterNot(_.name contains "Print")
+      .filterNot(_.name contains "USB")
+      .filterNot(_.name contains "MSDTCBridge")
+      .filterNot(_.name contains "ServiceModel")
+      .filterNot(_.name contains "MediaPlayer")
+      .filterNot(_.name contains "TapiSrv_Tele")
+      .filterNot(_.name contains "PowerMeter")
+      .filterNot(_.name contains "WindowsWorkflow")
+      .filterNot(_.name contains "IPsec")
+      .filterNot(_.name contains "PeerNameResolution")
+      .filterNot(_.name contains "PeerDistSvc")
+      .filterNot(_.name contains "Tcpip_ICMP")
+      .filterNot(_.name contains "IntelStorageCounters")
+      .filterNot(_.name contains "Counters_WFPv4")
+      .filterNot(_.name contains "Counters_WFPv6")
+      .filterNot(_.name contains "LocalSessionManager_TerminalServices")
+      .filterNot(_.name contains "Counters_ProcessorInformation")
+      .filterNot(_.name contains "TermService_TerminalServicesSession")
+      .filterNot(_.name contains "RemoteAccess_RAS")
+      .filterNot(_.name contains "WSearch")
 
   def getClassAttributes(comClass: ComClass): List[String] = {
     var result = List.empty[String]
-    useDispatch(swbemservices.invoke("Get", new Variant(comClass.name))) { comClassDispatch =>
+    useDispatch(swbemservices.invoke("Get", comClass.name)) { comClassDispatch =>
       useDispatch(Dispatch.call(comClassDispatch, "Properties_")) { propsDispatch =>
         val enumProps = new EnumVariant(propsDispatch)
         while (enumProps.hasMoreElements()) {
@@ -139,7 +157,7 @@ trait WMI extends Logging {
 
   def getInstancesNames(comClass: ComClass) = {
     var result = List.empty[String]
-    useDispatch(swbemservices.invoke("InstancesOf", new Variant(comClass.name))) { dispatch =>
+    useDispatch(swbemservices.invoke("InstancesOf", comClass.name)) { dispatch =>
       val enumVariant = new EnumVariant(dispatch)
       while (enumVariant.hasMoreElements()) {
         useDispatch(enumVariant.nextElement()) { itemDispatch =>
@@ -153,7 +171,7 @@ trait WMI extends Logging {
 
   def getInstances(comClass: ComClass): List[ComInstance] = {
     var result = List.empty[ComInstance]
-    useDispatch(swbemservices.invoke("InstancesOf", new Variant(comClass.name))) { dispatch =>
+    useDispatch(swbemservices.invoke("InstancesOf", comClass.name)) { dispatch =>
       val enumVariant = new EnumVariant(dispatch)
       while (enumVariant.hasMoreElements()) {
         useDispatch(enumVariant.nextElement()) { itemDispatch =>
@@ -166,13 +184,13 @@ trait WMI extends Logging {
     result
   }
 
-  def getInstance(comClass:ComClass, name:String):Option[ComInstance] = 
+  def getInstance(comClass: ComClass, name: String): Option[ComInstance] =
     getInstance(comClass, Some(name))
-    
+
   def getInstance(comClass: ComClass, name: Option[String] = None): Option[ComInstance] = {
     val id = if (name.isDefined) comClass.path + ".Name=\"" + name.get + "\""
-    else comClass.path+"=@"
-    useDispatch(swbemservices.invoke("Get", new Variant(id))) { instanceDispatch =>
+    else comClass.path + "=@"
+    useDispatch(swbemservices.invoke("Get", id)) { instanceDispatch =>
       try {
         val foundName = Option(Dispatch.call(instanceDispatch, "Name").getString)
 
@@ -188,13 +206,12 @@ trait WMI extends Logging {
     }
   }
 
-
   def getAttributesValues(instance: ComInstance): Map[String, Variant] = {
     var result = Map.empty[String, Variant]
     val id = if (instance.name.isDefined) instance.comClass.path + ".Name=\"" + instance.name.get + "\""
-    else instance.comClass.path+"=@"
+    else instance.comClass.path + "=@"
     try {
-      useDispatch(swbemservices.invoke("Get", new Variant(id))) { instanceDispatch =>
+      useDispatch(swbemservices.invoke("Get", id)) { instanceDispatch =>
         for {
           attr <- instance.comClass.attributes(this)
           value = Dispatch.get(instanceDispatch, attr)
@@ -204,9 +221,9 @@ trait WMI extends Logging {
       }
     } catch {
       case e: ComFailException =>
-        // TODO
-        //logger.warn(s"Exception in Get operation with $id", e)
-        //throw e
+      // TODO
+      //logger.warn(s"Exception in Get operation with $id", e)
+      //throw e
     }
     result
   }
