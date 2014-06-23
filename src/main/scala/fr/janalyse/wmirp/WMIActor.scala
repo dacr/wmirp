@@ -216,7 +216,7 @@ class WMIActor extends Actor with Logging {
           WMIMonitorActor.props(
             wmiWorkers = workers,
             writerActor = writer,
-            delay = 20.seconds,
+            delay = 10.seconds,
             tofollow = singletons2follow,
             useCache = true))
         highfreqmonitor ! WMIMonitorActor.Tick
@@ -233,7 +233,7 @@ class WMIActor extends Actor with Logging {
           WMIMonitorActor.props(
             wmiWorkers = workers,
             writerActor = writer,
-            delay = 40.seconds,
+            delay = 20.seconds,
             tofollow = otherClasses,
             instanceFilter = lowInstFilter,
             useCache = true))
@@ -247,7 +247,7 @@ class WMIActor extends Actor with Logging {
           WMIMonitorActor.props(
             wmiWorkers = workers,
             writerActor = writer,
-            delay = 90.seconds,
+            delay = 30.seconds,
             tofollow = otherClasses,
             instanceFilter = verylowInstFilter,
             useCache = false))
